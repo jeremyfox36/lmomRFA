@@ -5,6 +5,37 @@
        **************************************************
 
 
+Version 3.3     2019 Dec  5
+
+   o   Fixed: evplot.rfd(), when adding a site quantile function to an existing
+       plot, would plot an incorrectly scaled version of the quantile function
+       (it would plot the unscaled quantiles of the regional frequency
+       distribution rather than applying the appropriate site-specific scale
+       factor ("index flood")).
+
+   o   [Invisible to users] Internal code no longer assumes that class() of a
+       matrix has length 1 (would have caused error in R version 4.0.0).
+
+
+Version 3.2     2019 Mar 10
+
+   o   Fixed: in cluinf(), incorrect test of whether argument 'merge' could be
+       the result of a call to cluagg().
+
+
+Version 3.1     2017 Aug  1
+
+   o   "Native routines" are now "registered".
+
+   o   The simulation procedure used in regtst() involves fitting a kappa
+       distribution to the regional data.  The kappa fit may fail, in which
+       case a generalized logistic distribution is used instead.  This has
+       always been the case, but is now documented.
+
+   o   Fixed: regtst.s() would give an error for a region containing a single
+       site.
+
+
 Version 3.0-1   2015 Feb  1
 
    o   Maintainer's email address changed.  No changes to code.

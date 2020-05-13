@@ -4,7 +4,7 @@
 #*                                                                     *
 #*  J. R. M. HOSKING <jrmhosking@gmail.com>                            *
 #*                                                                     *
-#*  Version 3.0-1  February 2015                                       *
+#*  Version 3.3    December 2019                                       *
 #*                                                                     *
 #***********************************************************************
 
@@ -23,7 +23,7 @@ cluagg<-function(x, method="ward") {
 }
 
 cluinf<-function(merge, nclust) {
-  if (is.list(merge) && names(merge)==c("merge","wgss")) merge<-merge$merge
+  if (is.list(merge) && identical(names(merge),c("merge","wgss"))) merge<-merge$merge
   n<-nrow(merge)+1
   vec<-1:n
   for (i in 1:(n-nclust)) vec[vec==merge[i,2] ] <- vec[merge[i,1] ]
@@ -150,7 +150,7 @@ regtst<-function(regdata, nsim=1000){
   maxrec<-max(len)
   xmom <- if (ncol(regdata)==6) t(cbind(regdata[,3:6],2)) else t(regdata[,3:7])
 
-  fort<-.Fortran("regtst",PACKAGE="lmomRFA",
+  fort<-.Fortran(RegSym_regtst, PACKAGE="lmomRFA",
     nsites=as.integer(nsites),
     len=as.integer(len),
     xmom=as.double(xmom),
@@ -276,7 +276,7 @@ regtst.s<-function(regdata, nsim=1000) {
     rpara <- if (rmom[4]<=(1+5*rmom[3]^2)/6) pelkap(rmom) else c(pelglo(rmom),-1)
 
     # Fast version of quakap(), for use in inner loop
-    my.quakap<-function(f,para) .Fortran("qkap",PACKAGE="lmomRFA",
+    my.quakap<-function(f,para) .Fortran(RegSym_qkap, PACKAGE="lmomRFA",
         as.double(f),length(f),as.double(para))[[1]]
 
     re<-replicate(nsim, {
@@ -300,7 +300,7 @@ regtst.s<-function(regdata, nsim=1000) {
     t4bias<-re.bar[4]-rmom[4]
     t4sd<-re.sd[4]
 
-    sw<-sweep(t(xmom[,1:3]),1,rmom[2:4])
+    sw<-sweep(t(xmom[,1:3,drop=FALSE]),1,rmom[2:4])
     v1<-sqrt(weighted.mean(sw[1,]^2,w=len))
     v2<-weighted.mean(sqrt(sw[1,]^2+sw[2,]^2),w=len)
     v3<-weighted.mean(sqrt(sw[2,]^2+sw[3,]^2),w=len)
@@ -317,6 +317,7 @@ regtst.s<-function(regdata, nsim=1000) {
   out<-list(data=regdata, nsim=nsim, D=D, Dcrit=Dcrit,
     rmom=rmom, rpara=rpara, vobs=vobs, vbar=vbar, vsd=vsd, H=H,
     para=para, t4fit=t4fit, Z=Z)
+  if (nsites==1) out$vobs<-out$vbar<-out$vsd<-out$H<-rep(0,3)
   names(out$rmom)<-c("mean", "t", "t_3", "t_4", "t_5")
   class(out)<-"regtst"
   return(out)
@@ -582,8 +583,11 @@ regsimh <- function(qfunc, para, cor=0, nrec, nrep=500, nsim=500) {
    q2qua <- function(f) function(u,p) do.call(f,c(list(u),as.list(p)))
 
    # We don't use the reverse transformation, but here it is anyway
+   #
    #   qua2q <- function(f) function(u,...) mapply(f,u,mapply(c,...,SIMPLIFY=FALSE))
+   #
    # or (much faster if each arg in '...' is a single number)
+   #
    #   qua2q <- function(f) function(u,...) {
    #     if (length(c(...))==length(list(...))) f(u,c(...))
    #     else mapply(f,u,mapply(c,...,SIMPLIFY=FALSE))
@@ -593,8 +597,10 @@ regsimh <- function(qfunc, para, cor=0, nrec, nrep=500, nsim=500) {
 
    qfunc<-lapply(qfunc,function(f) if (length(formals(f))==2) f else q2qua(f))
 
-   # qflocal() is a function with 3 arguments that generates a function call
-   # its first argument with
+   # qflocal() is a function with 3 arguments that generates a function call to
+   # its first argument 'f' with the other arguments of qflocal() passed to f().
+   # Thus mapply(qflocal,qfunc,ulist,para) generates a set of calls
+   # qfunc[[i]](ulist[[i]],para[[i]]).
 
    qflocal <- function(f,u,p) f(u,p)
 
@@ -627,7 +633,7 @@ regsimh <- function(qfunc, para, cor=0, nrec, nrep=500, nsim=500) {
         cor<-diag(1-avcor,nsites)+avcor
       }
       cholcor<-try(chol(cor),silent=TRUE)
-      if (class(cholcor)=="try-error") stop("Correlation matrix is not positive definite")
+      if (inherits(cholcor,"try-error")) stop("Correlation matrix is not positive definite")
     }
 
    # Simulation loop
@@ -761,7 +767,7 @@ regsimq<-function(qfunc, para, cor=0, index=NULL, nrec, nrep=10000,
       cor<-diag(1-avcor,nsites)+avcor
     }
     cholcor<-try(chol(cor),silent=TRUE)
-    if (class(cholcor)=="try-error") stop("Correlation matrix is not positive definite")
+    if (inherits(cholcor,"try-error")) stop("Correlation matrix is not positive definite")
   }
 
   # Compute the index flood values if necessary
@@ -1118,7 +1124,7 @@ evplot.rfd<-function(y, ybounds, npoints=101, add=FALSE,
   }
   #
   if (add)
-    evdistq(y$qfunc, npoints=npoints, type=type, lty=lty[1], col=col[1], ...)
+    evdistq(my.qfunc, npoints=npoints, type=type, lty=lty[1], col=col[1], ...)
   else
     evplot(, qfunc=my.qfunc, npoints=npoints, plim=plim, xlim=xlim, ylim=ylim,
       type=type, xlab=xlab, ylab=ylab, rp.axis=rp.axis,
